@@ -3,47 +3,12 @@ import type {
 	ResolveBuildCacheProps,
 	UploadBuildCacheProps,
 } from "@expo/config";
-import { readFile, writeFile, cp, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
-import { createTarball, extractTarball } from "../utils/tar.js";
 import { HybridCacheProvider } from "../provider/HybridCacheProvider.js";
 import type { HybridCacheConfig } from "../types/CacheTypes.js";
 import { logger } from "../utils/logger.js";
-import { calculateJSHash } from "./fingerprintUtils.js";
-
-/**
- * Generates a cache key from Expo build cache props.
- * Optionally includes JS hash to detect JavaScript-only changes.
- */
-async function getCacheKey(
-	{
-		fingerprintHash,
-		platform,
-		projectRoot,
-		runOptions,
-	}: ResolveBuildCacheProps,
-	includeJSHash: boolean = false,
-): Promise<string> {
-	const isDevClient =
-		("variant" in runOptions && runOptions.variant === "debug") ||
-		("configuration" in runOptions && runOptions.configuration === "Debug");
-
-	let tag = `fingerprint.${fingerprintHash}`;
-	
-	// Include JS hash if enabled (for detecting JS-only changes)
-	if (includeJSHash) {
-		try {
-			const jsHash = await calculateJSHash(projectRoot);
-			tag += `.js${jsHash}`;
-		} catch (error) {
-			logger.debug("Failed to calculate JS hash, using native fingerprint only", error);
-		}
-	}
-	
-	tag += isDevClient ? ".dev-client" : "";
-	const extension = platform === "ios" ? "app" : "apk";
-	return `${tag}.${extension}`;
-}
+import { getCacheKey } from "./buildCacheKey.js";
+import { readBuildArtifact, writeCachedArtifact, copyToLocalCache } from "./buildArtifact.js";
 
 /**
  * Expo adapter that wraps HybridCacheProvider to work with Expo's build cache system.
@@ -66,19 +31,8 @@ export function createExpoCacheProvider(
 				return null;
 			}
 
-			// Determine target path
-			const targetPath = path.join(
-				config.localCacheDir,
-				path.basename(cacheKey),
-			);
-			await mkdir(path.dirname(targetPath), { recursive: true });
-
-			// Extract tarball if it's a directory (.app), otherwise write file (.apk)
-			if (cacheKey.endsWith(".app")) {
-				await extractTarball(cachedData, targetPath);
-			} else {
-				await writeFile(targetPath, cachedData);
-			}
+			const targetPath = path.join(config.localCacheDir, path.basename(cacheKey));
+			await writeCachedArtifact(cachedData, cacheKey, targetPath);
 
 			logger.info(`Cache hit for key: ${cacheKey}`);
 			return targetPath;
@@ -93,29 +47,10 @@ export function createExpoCacheProvider(
 	): Promise<string | null> {
 		try {
 			const cacheKey = await getCacheKey(args, includeJSHash);
-			
-			// Check if buildPath is a directory (.app) or file (.apk)
-			const buildStats = await stat(args.buildPath);
-			let buildData: Buffer;
+			const buildData = await readBuildArtifact(args.buildPath);
 
-			if (buildStats.isDirectory()) {
-				// Create tarball for directories
-				buildData = await createTarball(args.buildPath);
-			} else {
-				// Read file directly
-				buildData = await readFile(args.buildPath);
-			}
-
-			// Store in cache (will write to both local and S3 if writeThrough is enabled)
 			await cache.set(cacheKey, buildData);
-
-			// Also ensure it's in the local cache directory for fast access
-			const localPath = path.join(
-				config.localCacheDir,
-				path.basename(cacheKey),
-			);
-			await mkdir(path.dirname(localPath), { recursive: true });
-			await cp(args.buildPath, localPath, { recursive: true });
+			const localPath = await copyToLocalCache(args.buildPath, cacheKey, config.localCacheDir);
 
 			logger.info(`Uploaded build cache for key: ${cacheKey}`);
 			return localPath;

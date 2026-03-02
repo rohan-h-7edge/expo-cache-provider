@@ -1,11 +1,11 @@
-import { readFile, writeFile, unlink, access } from "node:fs/promises";
+import { readFile, writeFile, unlink, access, readdir, rm } from "node:fs/promises";
 import { constants } from "node:fs";
-import { readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import type { CacheProvider } from "../types/CacheTypes.js";
 import { DiskCacheError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";
 import { keyToPath, ensureDir } from "./pathUtils.js";
+import { isFileNotFoundError } from "../utils/nodeErrors.js";
 
 /**
  * Local disk-based cache implementation.
@@ -24,12 +24,7 @@ export class DiskCache implements CacheProvider {
 			logger.debug(`Disk cache HIT: ${key}`);
 			return data;
 		} catch (error) {
-			if (
-				error &&
-				typeof error === "object" &&
-				"code" in error &&
-				error.code === "ENOENT"
-			) {
+			if (isFileNotFoundError(error)) {
 				logger.debug(`Disk cache MISS: ${key}`);
 				return null;
 			}
@@ -60,7 +55,6 @@ export class DiskCache implements CacheProvider {
 
 	async clear(): Promise<void> {
 		try {
-			// Remove all files and subdirectories in cacheDir
 			const entries = await readdir(this.cacheDir, { withFileTypes: true });
 			for (const entry of entries) {
 				const entryPath = path.join(this.cacheDir, entry.name);
@@ -72,13 +66,7 @@ export class DiskCache implements CacheProvider {
 			}
 			logger.info(`Cleared disk cache: ${this.cacheDir}`);
 		} catch (error) {
-			if (
-				error &&
-				typeof error === "object" &&
-				"code" in error &&
-				error.code === "ENOENT"
-			) {
-				// Cache directory doesn't exist, which is fine
+			if (isFileNotFoundError(error)) {
 				logger.debug(`Cache directory does not exist: ${this.cacheDir}`);
 				return;
 			}

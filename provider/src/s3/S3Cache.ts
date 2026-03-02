@@ -55,14 +55,8 @@ export class S3Cache {
 			);
 			return true;
 		} catch (error) {
-			if (
-				error &&
-				typeof error === "object" &&
-				"name" in error &&
-				error.name === "NotFound"
-			) {
-				return false;
-			}
+			const awsError = error as { name?: string };
+			if (awsError.name === "NotFound") return false;
 			logger.error(`Failed to check S3 existence: ${key}`, error);
 			return false;
 		}
@@ -86,19 +80,20 @@ export class S3Cache {
 			}
 
 			const chunks: Uint8Array[] = [];
-			for await (const chunk of response.Body as any) {
+			for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
 				chunks.push(chunk);
 			}
 
 			const buffer = Buffer.concat(chunks);
 			logger.debug(`S3 cache HIT: ${key}`);
 			return buffer;
-		} catch (error: any) {
-			if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) {
+		} catch (error) {
+			const awsError = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+			if (awsError.name === "NoSuchKey" || awsError.$metadata?.httpStatusCode === 404) {
 				logger.debug(`S3 cache MISS: ${key}`);
 				return null;
 			}
-			logger.error(`Failed to get from S3: ${key}`, error);
+			logger.error(`Failed to get from S3: ${key}`, awsError);
 			return null;
 		}
 	}

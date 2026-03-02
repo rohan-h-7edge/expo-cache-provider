@@ -58,45 +58,11 @@ export function createS3Client(config: S3Config) {
 		}
 	}
 
-	/**
-	 * Gets a presigned URL for downloading an object.
-	 */
-	async function getDownloadUrl(key: string): Promise<string> {
+	async function getPresignedUrl(command: GetObjectCommand | PutObjectCommand, key: string): Promise<string> {
 		try {
-			const url = await getSignedUrl(
-				s3Client,
-				new GetObjectCommand({
-					Bucket: config.bucket,
-					Key: getS3Key(key),
-				}),
-				{
-					expiresIn: PRESIGNED_URL_EXPIRES_IN,
-				},
-			);
-			return url;
+			return await getSignedUrl(s3Client, command, { expiresIn: PRESIGNED_URL_EXPIRES_IN });
 		} catch (error) {
-			throw new S3CacheError(`Failed to get download URL for key: ${key}`, error);
-		}
-	}
-
-	/**
-	 * Gets a presigned URL for uploading an object.
-	 */
-	async function getUploadUrl(key: string): Promise<string> {
-		try {
-			const url = await getSignedUrl(
-				s3Client,
-				new PutObjectCommand({
-					Bucket: config.bucket,
-					Key: getS3Key(key),
-				}),
-				{
-					expiresIn: PRESIGNED_URL_EXPIRES_IN,
-				},
-			);
-			return url;
-		} catch (error) {
-			throw new S3CacheError(`Failed to get upload URL for key: ${key}`, error);
+			throw new S3CacheError(`Failed to get presigned URL for key: ${key}`, error);
 		}
 	}
 
@@ -105,7 +71,10 @@ export function createS3Client(config: S3Config) {
 	 */
 	async function download(key: string): Promise<Buffer> {
 		try {
-			const url = await getDownloadUrl(key);
+			const url = await getPresignedUrl(
+				new GetObjectCommand({ Bucket: config.bucket, Key: getS3Key(key) }),
+				key,
+			);
 			const response = await fetch(url);
 			if (!response.ok) {
 				if (response.status === 404) {
@@ -130,13 +99,14 @@ export function createS3Client(config: S3Config) {
 	 */
 	async function upload(key: string, data: Buffer): Promise<void> {
 		try {
-			const url = await getUploadUrl(key);
+			const url = await getPresignedUrl(
+				new PutObjectCommand({ Bucket: config.bucket, Key: getS3Key(key) }),
+				key,
+			);
 			const response = await fetch(url, {
 				method: "PUT",
 				body: data,
-				headers: {
-					"Content-Type": "application/octet-stream",
-				},
+				headers: { "Content-Type": "application/octet-stream" },
 			});
 			if (!response.ok) {
 				throw new S3CacheError(

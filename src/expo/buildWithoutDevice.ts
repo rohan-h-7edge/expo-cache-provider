@@ -12,6 +12,34 @@ export type BuildAndroidWithoutDeviceOptions = {
 	variant?: "debug" | "release";
 };
 
+const PLUGIN_NAME = "expo-cache-provider";
+const GRADLEW_WIN = "gradlew.bat";
+const GRADLEW_UNIX = "gradlew";
+const GRADLE_TASKS = { release: "assembleRelease", debug: "assembleDebug" } as const;
+const APK_NAMES = { release: "app-release.apk", debug: "app-debug.apk" } as const;
+
+function resolvePluginOptions(projectRoot: string): Partial<HybridCacheConfig> {
+	const { exp } = getConfig(projectRoot, { skipSDKVersionRequirement: true });
+	const buildCacheProvider = exp?.buildCacheProvider;
+	const isOurPlugin =
+		typeof buildCacheProvider === "object" &&
+		buildCacheProvider !== null &&
+		"plugin" in buildCacheProvider &&
+		buildCacheProvider.plugin === PLUGIN_NAME;
+	return isOurPlugin
+		? (buildCacheProvider as { options?: Partial<HybridCacheConfig> }).options ?? {}
+		: {};
+}
+
+function runGradleBuild(androidDir: string, variant: "debug" | "release"): void {
+	const gradlew = path.join(androidDir, process.platform === "win32" ? GRADLEW_WIN : GRADLEW_UNIX);
+	execSync(`"${gradlew}" ${GRADLE_TASKS[variant]}`, {
+		cwd: androidDir,
+		stdio: "inherit",
+		env: process.env,
+	});
+}
+
 /**
  * Runs the same cache + (optional) Gradle build flow as `expo run:android`,
  * but without requiring a connected device or emulator.
@@ -31,20 +59,7 @@ export async function buildAndroidWithoutDevice(
 	options?: BuildAndroidWithoutDeviceOptions,
 ): Promise<string> {
 	const variant = options?.variant ?? "release";
-	const config = getConfig(projectRoot, { skipSDKVersionRequirement: true });
-	const exp = config.exp;
-
-	const buildCacheProvider = exp?.buildCacheProvider;
-	const isOurPlugin =
-		typeof buildCacheProvider === "object" &&
-		buildCacheProvider !== null &&
-		"plugin" in buildCacheProvider &&
-		buildCacheProvider.plugin === "expo-cache-provider";
-
-	const pluginOptions: Partial<HybridCacheConfig> = isOurPlugin
-		? (buildCacheProvider as { options?: Partial<HybridCacheConfig> }).options ?? {}
-		: {};
-
+	const pluginOptions = resolvePluginOptions(projectRoot);
 	const fingerprintHash = await createProjectHashAsync(projectRoot);
 	const runOptions: RunOptions = { variant };
 
@@ -61,24 +76,13 @@ export async function buildAndroidWithoutDevice(
 		return resolved;
 	}
 
-	logger.info(`Build (no device): cache miss, running Gradle assemble${variant === "release" ? "Release" : "Debug"}...`);
+	logger.info(`Build (no device): cache miss, running Gradle ${GRADLE_TASKS[variant]}...`);
 	const androidDir = path.join(projectRoot, "android");
-	const gradlew = path.join(androidDir, process.platform === "win32" ? "gradlew.bat" : "gradlew");
-	const task = variant === "release" ? "assembleRelease" : "assembleDebug";
-	execSync(`"${gradlew}" ${task}`, {
-		cwd: androidDir,
-		stdio: "inherit",
-		env: process.env,
-	});
+	runGradleBuild(androidDir, variant);
 
-	const apkDir = path.join(androidDir, "app", "build", "outputs", "apk", variant);
-	const apkName = variant === "release" ? "app-release.apk" : "app-debug.apk";
-	const buildPath = path.join(apkDir, apkName);
+	const buildPath = path.join(androidDir, "app", "build", "outputs", "apk", variant, APK_NAMES[variant]);
 
-	await ExpoCacheProvider.uploadBuildCache(
-		{ ...resolveArgs, buildPath },
-		pluginOptions,
-	);
+	await ExpoCacheProvider.uploadBuildCache({ ...resolveArgs, buildPath }, pluginOptions);
 	logger.info(`Build (no device): uploaded to cache, APK: ${buildPath}`);
 	return buildPath;
 }
