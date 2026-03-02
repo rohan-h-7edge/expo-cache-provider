@@ -1,0 +1,31 @@
+{
+	"name": "expo-native-cache-provider",
+	"version": "0.1.0",
+	"description": "Native-only cache provider using Expo's official fingerprinting",
+	"main": "build/index.js",
+	"types": "build/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.922.0",
+		"@expo/fingerprint": "^0.15.4",
+		"env-paths": "^2.2.1",
+		"tar": "^7.5.2"
+	},
+	"peerDependencies": {
+		"@expo/config": "*"
+	},
+	"devDependencies": {
+		"@expo/config": "^12.0.0",
+		"@types/node": "^20.0.0",
+		"@types/tar": "^6.1.0",
+		"typescript": "^5.9.0"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	}
+}
+
+
