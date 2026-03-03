@@ -2,11 +2,25 @@ import { DiskCache } from "../local/DiskCache.js";
 import { S3Cache, type S3Config } from "../s3/S3Cache.js";
 import { logger } from "../utils/logger.js";
 
+export interface SigningConfig {
+	/** Path to the keystore file. Defaults to the project's debug.keystore. */
+	keystorePath?: string;
+	/** Keystore password. Defaults to "android". */
+	keystorePassword?: string;
+	/** Key alias. Defaults to "androiddebugkey". */
+	keyAlias?: string;
+	/** Key password. Defaults to "android". */
+	keyPassword?: string;
+	/** Set to true to skip APK signing entirely after repack. */
+	disabled?: boolean;
+}
+
 export interface HybridCacheConfig {
 	localCacheDir: string;
 	s3?: S3Config;
 	writeThrough?: boolean; // Default: true
 	enableRepack?: boolean; // Default: false - repack cached binaries with fresh JS
+	signing?: SigningConfig;
 }
 
 /**

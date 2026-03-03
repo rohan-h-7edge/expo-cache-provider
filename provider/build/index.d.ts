@@ -16,5 +16,6 @@ declare const NativeCacheProvider: BuildCacheProviderPlugin<Partial<HybridCacheC
  */
 export declare function generateJSBundle(projectRoot: string, platform: "android" | "ios"): Promise<string>;
 export { Repack } from "./repack/Repack.js";
+export type { HybridCacheConfig, SigningConfig } from "./hybrid/HybridCache.js";
 export default NativeCacheProvider;
 //# sourceMappingURL=index.d.ts.map

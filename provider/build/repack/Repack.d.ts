@@ -1,3 +1,4 @@
+import type { SigningConfig } from "../hybrid/HybridCache.js";
 /**
  * Repacks a native binary with a new JavaScript bundle.
  *
@@ -15,7 +16,7 @@ export declare class Repack {
      * - APK signing v1/v2/v3
      * - File permissions preservation
      */
-    static repackAndroid(apkPath: string, jsBundlePath: string, outputPath: string, projectRoot: string): Promise<string>;
+    static repackAndroid(apkPath: string, jsBundlePath: string, outputPath: string, projectRoot: string, signing?: SigningConfig): Promise<string>;
     /**
      * Repacks an iOS .app bundle with a new JavaScript bundle.
      *
@@ -26,7 +27,7 @@ export declare class Repack {
      * - Info.plist updates
      * - Embedded frameworks preservation
      */
-    static repackIOS(appPath: string, jsBundlePath: string, outputPath: string, projectRoot: string): Promise<string>;
+    static repackIOS(appPath: string, jsBundlePath: string, outputPath: string, projectRoot: string, signing?: SigningConfig): Promise<string>;
     private static replaceJsBundle;
     private static extractZip;
     /**

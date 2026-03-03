@@ -1,9 +1,22 @@
 import { type S3Config } from "../s3/S3Cache.js";
+export interface SigningConfig {
+    /** Path to the keystore file. Defaults to the project's debug.keystore. */
+    keystorePath?: string;
+    /** Keystore password. Defaults to "android". */
+    keystorePassword?: string;
+    /** Key alias. Defaults to "androiddebugkey". */
+    keyAlias?: string;
+    /** Key password. Defaults to "android". */
+    keyPassword?: string;
+    /** Set to true to skip APK signing entirely after repack. */
+    disabled?: boolean;
+}
 export interface HybridCacheConfig {
     localCacheDir: string;
     s3?: S3Config;
     writeThrough?: boolean;
     enableRepack?: boolean;
+    signing?: SigningConfig;
 }
 /**
  * Hybrid cache that implements local-first strategy with S3 fallback.

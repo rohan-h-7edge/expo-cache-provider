@@ -20,7 +20,7 @@ export class Repack {
      * - APK signing v1/v2/v3
      * - File permissions preservation
      */
-    static async repackAndroid(apkPath, jsBundlePath, outputPath, projectRoot) {
+    static async repackAndroid(apkPath, jsBundlePath, outputPath, projectRoot, signing) {
         const tempDir = path.join(tmpdir(), `repack-android-${Date.now()}`);
         try {
             await mkdir(tempDir, { recursive: true });
@@ -64,7 +64,7 @@ export class Repack {
             const alignedApk = path.join(tempDir, "aligned.apk");
             await this.alignApk(unsignedApk, alignedApk);
             logger.info("    [4/4] Signing APK...");
-            await this.signApk(alignedApk, outputPath, projectRoot);
+            await this.signApk(alignedApk, outputPath, projectRoot, signing);
             await this.cleanup(tempDir);
             logger.debug(`Repacked Android APK: ${outputPath}`);
             return outputPath;
@@ -84,7 +84,7 @@ export class Repack {
      * - Info.plist updates
      * - Embedded frameworks preservation
      */
-    static async repackIOS(appPath, jsBundlePath, outputPath, projectRoot) {
+    static async repackIOS(appPath, jsBundlePath, outputPath, projectRoot, signing) {
         const tempDir = path.join(tmpdir(), `repack-ios-${Date.now()}`);
         try {
             await mkdir(tempDir, { recursive: true });
@@ -119,12 +119,17 @@ export class Repack {
                 logger.debug("Removed old _CodeSignature");
             }
             await this.removeCodeSignatures(tempAppPath);
-            try {
-                await this.signIOSApp(tempAppPath, projectRoot);
+            if (signing?.disabled) {
+                logger.info("    Signing skipped (disabled in config)");
             }
-            catch (error) {
-                logger.warn(`Failed to re-sign iOS app, continuing without signing: ${error}`);
-                logger.warn("Unsigned app may not work on devices, but will work in simulator");
+            else {
+                try {
+                    await this.signIOSApp(tempAppPath, projectRoot, signing);
+                }
+                catch (error) {
+                    logger.warn(`Failed to re-sign iOS app, continuing without signing: ${error}`);
+                    logger.warn("Unsigned app may not work on devices, but will work in simulator");
+                }
             }
             await mkdir(path.dirname(outputPath), { recursive: true });
             await this.copyDirectory(tempAppPath, outputPath);
@@ -234,29 +239,40 @@ export class Repack {
      * Signs an Android APK with debug keystore.
      * Supports APK signing v1, v2, and v3.
      */
-    static async signApk(apkPath, outputPath, projectRoot) {
-        const possibleKeystores = [
-            path.join(projectRoot, "android", "app", "debug.keystore"),
-            path.join(process.env.HOME || "", ".android", "debug.keystore"),
-            path.join(process.env.ANDROID_HOME || "", "debug.keystore"),
-        ];
-        let keystorePath = null;
-        for (const keystore of possibleKeystores) {
-            if (await this.fileExists(keystore)) {
-                keystorePath = keystore;
-                break;
+    static async signApk(apkPath, outputPath, projectRoot, signing) {
+        if (signing?.disabled) {
+            logger.info("    Signing skipped (disabled in config)");
+            await this.copyFile(apkPath, outputPath);
+            return;
+        }
+        const keystorePassword = signing?.keystorePassword ?? "android";
+        const keyAlias = signing?.keyAlias ?? "androiddebugkey";
+        const keyPassword = signing?.keyPassword ?? "android";
+        let keystorePath = signing?.keystorePath ?? null;
+        if (!keystorePath) {
+            const possibleKeystores = [
+                path.join(projectRoot, "android", "app", "debug.keystore"),
+                path.join(process.env.HOME || "", ".android", "debug.keystore"),
+                path.join(process.env.ANDROID_HOME || "", "debug.keystore"),
+            ];
+            for (const keystore of possibleKeystores) {
+                if (await this.fileExists(keystore)) {
+                    keystorePath = keystore;
+                    break;
+                }
+            }
+            if (!keystorePath) {
+                logger.warn("Debug keystore not found, generating one...");
+                keystorePath = possibleKeystores[1];
+                await this.generateDebugKeystore(keystorePath);
             }
         }
-        if (!keystorePath) {
-            logger.warn("Debug keystore not found, generating one...");
-            keystorePath = possibleKeystores[1]; // Use default location
-            await this.generateDebugKeystore(keystorePath);
-        }
+        logger.debug(`Signing with keystore: ${keystorePath} (alias: ${keyAlias})`);
         try {
             const apksignerPath = this.findApksigner();
             if (apksignerPath) {
                 try {
-                    execSync(`"${apksignerPath}" sign --ks "${keystorePath}" --ks-pass pass:android --key-pass pass:android --min-sdk-version 21 --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true "${apkPath}"`, {
+                    execSync(`"${apksignerPath}" sign --ks "${keystorePath}" --ks-pass pass:${keystorePassword} --key-pass pass:${keyPassword} --min-sdk-version 21 --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true "${apkPath}"`, {
                         encoding: "utf-8",
                         timeout: 30000,
                     });
@@ -272,7 +288,7 @@ export class Repack {
             }
             // Fallback to jarsigner (v1 only, but more widely available)
             logger.warn("apksigner not found, using jarsigner (v1 signing only)");
-            execSync(`jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore "${keystorePath}" -storepass android -keypass android "${apkPath}" androiddebugkey`, {
+            execSync(`jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore "${keystorePath}" -storepass ${keystorePassword} -keypass ${keyPassword} "${apkPath}" ${keyAlias}`, {
                 stdio: "ignore",
                 timeout: 30000,
             });
@@ -289,7 +305,7 @@ export class Repack {
      * Signing order: main executable → Frameworks → PlugIns → WatchKit extensions → .app bundle
      * Ad-hoc signing works for simulator and development; device deployment requires proper certificates.
      */
-    static async signIOSApp(appPath, projectRoot) {
+    static async signIOSApp(appPath, projectRoot, _signing) {
         try {
             const frameworksPath = path.join(appPath, "Frameworks");
             if (await this.fileExists(frameworksPath)) {

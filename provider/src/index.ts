@@ -10,7 +10,7 @@ import { create, extract } from "tar";
 import { tmpdir } from "node:os";
 import { calculateNativeFingerprint } from "./fingerprint/nativeFingerprint.js";
 import { detectProfile, shouldUseCache, buildCacheKey } from "./utils/guards.js";
-import { HybridCache, type HybridCacheConfig } from "./hybrid/HybridCache.js";
+import { HybridCache, type HybridCacheConfig, type SigningConfig } from "./hybrid/HybridCache.js";
 import { logger } from "./utils/logger.js";
 import { Repack } from "./repack/Repack.js";
 import { execSync } from "node:child_process";
@@ -85,6 +85,7 @@ async function repackWithFreshJS(
 	cacheKey: string,
 	args: ResolveBuildCacheProps,
 	localCacheDir: string,
+	signing?: SigningConfig,
 ): Promise<string | null> {
 	try {
 		logger.info(`Repacking cached ${args.platform === "android" ? "APK" : "app"} with fresh JS bundle...`);
@@ -93,9 +94,9 @@ async function repackWithFreshJS(
 		logger.info("  → Injecting bundle into binary...");
 		const repackedPath = path.join(localCacheDir, `repacked-${path.basename(cacheKey)}`);
 		if (args.platform === "android") {
-			await Repack.repackAndroid(targetPath, jsBundlePath, repackedPath, args.projectRoot);
+			await Repack.repackAndroid(targetPath, jsBundlePath, repackedPath, args.projectRoot, signing);
 		} else {
-			await Repack.repackIOS(targetPath, jsBundlePath, repackedPath, args.projectRoot);
+			await Repack.repackIOS(targetPath, jsBundlePath, repackedPath, args.projectRoot, signing);
 		}
 		logger.info("  ✓ Repack complete");
 		return repackedPath;
@@ -132,6 +133,7 @@ function normalizeConfig(options?: Partial<HybridCacheConfig>): HybridCacheConfi
 			: undefined,
 		writeThrough: options?.writeThrough ?? true,
 		enableRepack: options?.enableRepack ?? false,
+		signing: options?.signing,
 	};
 }
 
@@ -192,7 +194,7 @@ const NativeCacheProvider: BuildCacheProviderPlugin<
 			await writeNativeCachedArtifact(cachedData, cacheKey, targetPath);
 
 			if (config.enableRepack) {
-				const repacked = await repackWithFreshJS(targetPath, cacheKey, args, config.localCacheDir);
+				const repacked = await repackWithFreshJS(targetPath, cacheKey, args, config.localCacheDir, config.signing);
 				if (repacked !== null) return repacked;
 			}
 
@@ -300,5 +302,6 @@ export async function generateJSBundle(projectRoot: string, platform: "android" 
 }
 
 export { Repack } from "./repack/Repack.js";
+export type { HybridCacheConfig, SigningConfig } from "./hybrid/HybridCache.js";
 export default NativeCacheProvider;
 

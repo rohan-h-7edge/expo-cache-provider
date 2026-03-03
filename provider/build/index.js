@@ -58,7 +58,7 @@ async function copyBuildToLocalDir(buildPath, cacheKey, localCacheDir) {
     await cp(buildPath, localPath, { recursive: true });
     return localPath;
 }
-async function repackWithFreshJS(targetPath, cacheKey, args, localCacheDir) {
+async function repackWithFreshJS(targetPath, cacheKey, args, localCacheDir, signing) {
     try {
         logger.info(`Repacking cached ${args.platform === "android" ? "APK" : "app"} with fresh JS bundle...`);
         logger.info("  → Generating JS bundle...");
@@ -66,10 +66,10 @@ async function repackWithFreshJS(targetPath, cacheKey, args, localCacheDir) {
         logger.info("  → Injecting bundle into binary...");
         const repackedPath = path.join(localCacheDir, `repacked-${path.basename(cacheKey)}`);
         if (args.platform === "android") {
-            await Repack.repackAndroid(targetPath, jsBundlePath, repackedPath, args.projectRoot);
+            await Repack.repackAndroid(targetPath, jsBundlePath, repackedPath, args.projectRoot, signing);
         }
         else {
-            await Repack.repackIOS(targetPath, jsBundlePath, repackedPath, args.projectRoot);
+            await Repack.repackIOS(targetPath, jsBundlePath, repackedPath, args.projectRoot, signing);
         }
         logger.info("  ✓ Repack complete");
         return repackedPath;
@@ -102,6 +102,7 @@ function normalizeConfig(options) {
             : undefined,
         writeThrough: options?.writeThrough ?? true,
         enableRepack: options?.enableRepack ?? false,
+        signing: options?.signing,
     };
 }
 /**
@@ -145,7 +146,7 @@ const NativeCacheProvider = {
             const targetPath = path.join(config.localCacheDir, path.basename(cacheKey));
             await writeNativeCachedArtifact(cachedData, cacheKey, targetPath);
             if (config.enableRepack) {
-                const repacked = await repackWithFreshJS(targetPath, cacheKey, args, config.localCacheDir);
+                const repacked = await repackWithFreshJS(targetPath, cacheKey, args, config.localCacheDir, config.signing);
                 if (repacked !== null)
                     return repacked;
             }
