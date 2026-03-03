@@ -4,7 +4,7 @@ import type {
 	ResolveBuildCacheProps,
 	UploadBuildCacheProps,
 } from "@expo/config";
-import { readFile, writeFile, cp, mkdir, stat, unlink } from "node:fs/promises";
+import { readFile, writeFile, cp, mkdir, stat, unlink, access } from "node:fs/promises";
 import path from "node:path";
 import { create, extract } from "tar";
 import { tmpdir } from "node:os";
@@ -265,6 +265,7 @@ export async function generateJSBundle(projectRoot: string, platform: "android" 
 				cwd: projectRoot,
 				stdio: "pipe",
 				timeout: BUNDLE_TIMEOUT_MS,
+				env: { ...process.env, NODE_ENV: process.env.NODE_ENV },
 			});
 
 			const possiblePaths = [
@@ -285,9 +286,17 @@ export async function generateJSBundle(projectRoot: string, platform: "android" 
 		}
 
 		const entryFile = await resolveEntryFile(projectRoot, platform);
+		const metroConfig = path.join(projectRoot, "metro.config.js");
+		const hasMetroConfig = await access(metroConfig).then(() => true).catch(() => false);
+		const configFlag = hasMetroConfig ? ` --config "${metroConfig}"` : "";
 		execSync(
-			`npx react-native bundle --platform ${platform} --dev false --entry-file ${entryFile} --bundle-output "${tempBundle}" --assets-dest "${path.dirname(tempBundle)}"`,
-			{ cwd: projectRoot, stdio: "pipe", timeout: BUNDLE_TIMEOUT_MS },
+			`npx react-native bundle --platform ${platform} --dev false --entry-file ${entryFile} --bundle-output "${tempBundle}" --assets-dest "${path.dirname(tempBundle)}"${configFlag}`,
+			{
+				cwd: projectRoot,
+				stdio: "pipe",
+				timeout: BUNDLE_TIMEOUT_MS,
+				env: { ...process.env, NODE_ENV: process.env.NODE_ENV },
+			},
 		);
 
 		await stat(tempBundle);
