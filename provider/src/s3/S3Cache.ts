@@ -79,12 +79,27 @@ export class S3Cache {
 				return null;
 			}
 
+			const totalBytes = response.ContentLength ?? 0;
+			const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
+			logger.info(`Downloading from S3${totalBytes > 0 ? ` (${totalMB} MB)` : ""}...`);
+
 			const chunks: Uint8Array[] = [];
+			let receivedBytes = 0;
+			let lastLoggedPct = 0;
 			for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
 				chunks.push(chunk);
+				receivedBytes += chunk.length;
+				if (totalBytes > 0) {
+					const pct = Math.floor((receivedBytes / totalBytes) * 100);
+					if (pct >= lastLoggedPct + 25) {
+						lastLoggedPct = Math.floor(pct / 25) * 25;
+						logger.info(`  ↓ ${(receivedBytes / 1024 / 1024).toFixed(1)} / ${totalMB} MB (${lastLoggedPct}%)`);
+					}
+				}
 			}
 
 			const buffer = Buffer.concat(chunks);
+			logger.info(`  ✓ Download complete`);
 			logger.debug(`S3 cache HIT: ${key}`);
 			return buffer;
 		} catch (error) {
@@ -104,6 +119,8 @@ export class S3Cache {
 	async set(key: string, data: Buffer): Promise<void> {
 		try {
 			const s3Key = this.getS3Key(key);
+			const sizeMB = (data.length / 1024 / 1024).toFixed(1);
+			logger.info(`Uploading to S3 (${sizeMB} MB)...`);
 			const command = new PutObjectCommand({
 				Bucket: this.config.bucket,
 				Key: s3Key,
@@ -112,6 +129,7 @@ export class S3Cache {
 			});
 
 			await this.s3Client.send(command);
+			logger.info(`  ✓ S3 upload complete`);
 			logger.debug(`S3 cache SET: ${key}`);
 		} catch (error) {
 			logger.error(`Failed to set in S3: ${key}`, error);

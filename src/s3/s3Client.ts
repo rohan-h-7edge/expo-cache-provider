@@ -7,6 +7,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { S3Config } from "../types/CacheTypes.js";
 import { S3CacheError } from "../utils/errors.js";
+import { logger } from "../utils/logger.js";
 
 const PRESIGNED_URL_EXPIRES_IN = 15 * 60; // 15 minutes
 
@@ -84,8 +85,31 @@ export function createS3Client(config: S3Config) {
 					`Failed to download object: ${key} (${response.status})`,
 				);
 			}
-			const arrayBuffer = await response.arrayBuffer();
-			return Buffer.from(arrayBuffer);
+
+			const totalBytes = parseInt(response.headers.get("content-length") ?? "0", 10);
+			const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
+			logger.info(`Downloading from S3${totalBytes > 0 ? ` (${totalMB} MB)` : ""}...`);
+
+			const chunks: Uint8Array[] = [];
+			let receivedBytes = 0;
+			let lastLoggedPct = 0;
+			const reader = response.body!.getReader();
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				chunks.push(value);
+				receivedBytes += value.length;
+				if (totalBytes > 0) {
+					const pct = Math.floor((receivedBytes / totalBytes) * 100);
+					if (pct >= lastLoggedPct + 25) {
+						lastLoggedPct = Math.floor(pct / 25) * 25;
+						logger.info(`  ↓ ${(receivedBytes / 1024 / 1024).toFixed(1)} / ${totalMB} MB (${lastLoggedPct}%)`);
+					}
+				}
+			}
+
+			logger.info(`  ✓ Download complete`);
+			return Buffer.concat(chunks);
 		} catch (error) {
 			if (error instanceof S3CacheError) {
 				throw error;
@@ -103,6 +127,8 @@ export function createS3Client(config: S3Config) {
 				new PutObjectCommand({ Bucket: config.bucket, Key: getS3Key(key) }),
 				key,
 			);
+			const sizeMB = (data.length / 1024 / 1024).toFixed(1);
+			logger.info(`Uploading to S3 (${sizeMB} MB)...`);
 			const response = await fetch(url, {
 				method: "PUT",
 				body: data,
@@ -113,6 +139,7 @@ export function createS3Client(config: S3Config) {
 					`Failed to upload object: ${key} (${response.status})`,
 				);
 			}
+			logger.info(`  ✓ S3 upload complete`);
 		} catch (error) {
 			if (error instanceof S3CacheError) {
 				throw error;
