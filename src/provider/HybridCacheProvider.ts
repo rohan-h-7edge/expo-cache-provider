@@ -2,6 +2,7 @@ import type { CacheProvider, HybridCacheConfig } from "../types/CacheTypes.js";
 import { DiskCache } from "../local/DiskCache.js";
 import { S3Cache } from "../s3/S3Cache.js";
 import { logger } from "../utils/logger.js";
+import { summarizeS3Error } from "../utils/s3Errors.js";
 
 /**
  * Hybrid cache provider that implements local-first strategy:
@@ -79,10 +80,5 @@ export class HybridCacheProvider implements CacheProvider {
 			});
 		}
 	}
-}
-
-function summarizeS3Error(error: unknown): string {
-	const msg = error instanceof Error ? error.message : String(error);
-	return msg.includes("credentials") ? "S3 not configured or missing credentials" : msg;
 }
 

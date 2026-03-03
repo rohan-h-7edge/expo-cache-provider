@@ -21,6 +21,7 @@ import type { CacheProvider } from "./types/CacheTypes.js";
  * await cache.set("my-key", Buffer.from("data"));
  * ```
  */
+
 export function createHybridCache(
 	config: HybridCacheConfig,
 ): CacheProvider {
