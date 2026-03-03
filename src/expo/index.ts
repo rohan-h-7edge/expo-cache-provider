@@ -32,7 +32,7 @@ async function repackBinary(
 		} else {
 			await Repack.repackIOS(targetPath, jsBundlePath, repackedPath, args.projectRoot);
 		}
-		logger.info(`Repacked binary with fresh JS: ${repackedPath}`);
+		logger.debug(`Repacked binary with fresh JS: ${repackedPath}`);
 		return repackedPath;
 	} catch (error) {
 		logger.warn(`Repack failed, using cached binary as-is: ${error}`);

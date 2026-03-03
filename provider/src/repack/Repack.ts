@@ -32,7 +32,7 @@ export class Repack {
 		try {
 			await mkdir(tempDir, { recursive: true });
 
-			logger.debug(`Extracting APK: ${apkPath}`);
+			logger.info("    [1/4] Extracting APK...");
 			await this.extractZip(apkPath, tempDir);
 
 			const possibleBundlePaths = [
@@ -51,6 +51,7 @@ export class Repack {
 				path.join(tempDir, "assets", "index.android.hbc"),
 			];
 
+			logger.info("    [2/4] Replacing JS bundle...");
 			const fallbackBundlePath = path.join(tempDir, "assets", "index.android.bundle");
 			await this.replaceJsBundle(jsBundlePath, possibleBundlePaths, fallbackBundlePath);
 
@@ -71,17 +72,19 @@ export class Repack {
 				logger.warn("No DEX files found - APK may be AAB or have unusual structure");
 			}
 
+			logger.info("    [3/4] Packaging APK...");
 			const unsignedApk = path.join(tempDir, "unsigned.apk");
 			await this.createZipFromDir(tempDir, unsignedApk);
 
 			const alignedApk = path.join(tempDir, "aligned.apk");
 			await this.alignApk(unsignedApk, alignedApk);
 
+			logger.info("    [4/4] Signing APK...");
 			await this.signApk(alignedApk, outputPath, projectRoot);
 
 			await this.cleanup(tempDir);
 
-			logger.info(`Repacked Android APK: ${outputPath}`);
+			logger.debug(`Repacked Android APK: ${outputPath}`);
 			return outputPath;
 		} catch (error) {
 			await this.cleanup(tempDir).catch(() => {});
@@ -234,13 +237,13 @@ export class Repack {
 			});
 
 			try {
-				execSync(`"${zipalignPath}" -v 4 "${outputApk}"`, {
+				execSync(`"${zipalignPath}" -c -v 4 "${outputApk}"`, {
 					stdio: "pipe",
 					timeout: 10000,
 				});
 				logger.debug("APK alignment verified");
 			} catch {
-				logger.warn("APK alignment verification failed, but continuing");
+				logger.warn("APK alignment check failed, but continuing");
 			}
 		} catch (error) {
 			logger.warn(`zipalign failed: ${error}`);

@@ -102,7 +102,7 @@ export async function buildAndroidWithoutDevice(
 
 	const resolved = await ExpoCacheProvider.resolveBuildCache(resolveArgs, pluginOptions);
 	if (resolved !== null) {
-		logger.info(`Build (no device): using cached/repacked binary: ${resolved}`);
+		logger.info(`Build (no device): cache hit`);
 		return resolved;
 	}
 
@@ -113,6 +113,6 @@ export async function buildAndroidWithoutDevice(
 	const buildPath = options?.apkPath ? path.resolve(options.apkPath) : apkOutputPath(androidDir, variant);
 
 	await ExpoCacheProvider.uploadBuildCache({ ...resolveArgs, buildPath }, pluginOptions);
-	logger.info(`Build (no device): uploaded to cache, APK: ${buildPath}`);
+	logger.info(`Build (no device): uploaded to cache`);
 	return buildPath;
 }

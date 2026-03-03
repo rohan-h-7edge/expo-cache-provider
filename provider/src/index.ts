@@ -87,14 +87,17 @@ async function repackWithFreshJS(
 	localCacheDir: string,
 ): Promise<string | null> {
 	try {
+		logger.info(`Repacking cached ${args.platform === "android" ? "APK" : "app"} with fresh JS bundle...`);
+		logger.info("  → Generating JS bundle...");
 		const jsBundlePath = await generateJSBundle(args.projectRoot, args.platform);
+		logger.info("  → Injecting bundle into binary...");
 		const repackedPath = path.join(localCacheDir, `repacked-${path.basename(cacheKey)}`);
 		if (args.platform === "android") {
 			await Repack.repackAndroid(targetPath, jsBundlePath, repackedPath, args.projectRoot);
 		} else {
 			await Repack.repackIOS(targetPath, jsBundlePath, repackedPath, args.projectRoot);
 		}
-		logger.info(`Repacked binary with fresh JS: ${repackedPath}`);
+		logger.info("  ✓ Repack complete");
 		return repackedPath;
 	} catch (error) {
 		logger.warn(`Repack failed, using cached binary as-is: ${error}`);
@@ -149,7 +152,7 @@ const NativeCacheProvider: BuildCacheProviderPlugin<
 	 */
 	async calculateFingerprintHash(
 		props: CalculateFingerprintHashProps,
-		options?: Partial<HybridCacheConfig> | undefined,
+		_options?: Partial<HybridCacheConfig> | undefined,
 	): Promise<string | null> {
 		try {
 			const fingerprint = await calculateNativeFingerprint(
@@ -257,35 +260,25 @@ async function resolveEntryFile(projectRoot: string, platform: "android" | "ios"
 export async function generateJSBundle(projectRoot: string, platform: "android" | "ios"): Promise<string> {
 	const bundleExt = platform === "android" ? "android.bundle" : "jsbundle";
 	const tempBundle = path.join(tmpdir(), `jsbundle-${Date.now()}.${bundleExt}`);
-	const bundleName = platform === "android" ? "index.android.bundle" : "main.jsbundle";
+	const entryFile = await resolveEntryFile(projectRoot, platform);
 
 	try {
 		try {
-			execSync(`npx expo export:embed --platform ${platform}`, {
-				cwd: projectRoot,
-				stdio: "pipe",
-				timeout: BUNDLE_TIMEOUT_MS,
-				env: { ...process.env, NODE_ENV: process.env.NODE_ENV },
-			});
-
-			const possiblePaths = [
-				path.join(projectRoot, ".expo", "bundles", bundleName),
-				path.join(projectRoot, "dist", bundleName),
-			];
-
-			for (const bundlePath of possiblePaths) {
-				try {
-					await stat(bundlePath);
-					return bundlePath;
-				} catch {
-					// try next candidate
-				}
-			}
+			execSync(
+				`npx expo export:embed --platform ${platform} --entry-file ${entryFile} --bundle-output "${tempBundle}" --assets-dest "${path.dirname(tempBundle)}" --dev false`,
+				{
+					cwd: projectRoot,
+					stdio: "pipe",
+					timeout: BUNDLE_TIMEOUT_MS,
+					env: { ...process.env, NODE_ENV: process.env.NODE_ENV },
+				},
+			);
+			await stat(tempBundle);
+			return tempBundle;
 		} catch (error) {
-			logger.debug(`Expo export:embed failed, trying Metro directly: ${error}`);
+			logger.debug(`expo export:embed failed, falling back to react-native bundle: ${error}`);
 		}
 
-		const entryFile = await resolveEntryFile(projectRoot, platform);
 		const metroConfig = path.join(projectRoot, "metro.config.js");
 		const hasMetroConfig = await access(metroConfig).then(() => true).catch(() => false);
 		const configFlag = hasMetroConfig ? ` --config "${metroConfig}"` : "";
