@@ -21,7 +21,7 @@ export type BuildAndroidWithoutDeviceOptions = {
 	apkPath?: string;
 };
 
-const PLUGIN_NAME = "expo-cache-provider";
+const PLUGIN_NAMES = ["expo-cache-provider", "expo-native-cache-provider"];
 const GRADLEW_WIN = "gradlew.bat";
 const GRADLEW_UNIX = "gradlew";
 
@@ -55,7 +55,7 @@ function resolvePluginOptions(projectRoot: string): Partial<HybridCacheConfig> {
 		typeof buildCacheProvider === "object" &&
 		buildCacheProvider !== null &&
 		"plugin" in buildCacheProvider &&
-		buildCacheProvider.plugin === PLUGIN_NAME;
+		PLUGIN_NAMES.includes(buildCacheProvider.plugin as string);
 	return isOurPlugin
 		? (buildCacheProvider as { options?: Partial<HybridCacheConfig> }).options ?? {}
 		: {};

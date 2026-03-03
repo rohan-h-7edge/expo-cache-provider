@@ -13,13 +13,13 @@ import { summarizeS3Error } from "../utils/s3Errors.js";
  */
 export class HybridCacheProvider implements CacheProvider {
 	private readonly diskCache: DiskCache;
-	private readonly s3Cache: S3Cache;
+	private readonly s3Cache: S3Cache | undefined;
 	private readonly writeThrough: boolean;
 	private readonly clearS3OnClear: boolean;
 
 	constructor(config: HybridCacheConfig) {
 		this.diskCache = new DiskCache(config.localCacheDir);
-		this.s3Cache = new S3Cache(config.s3);
+		this.s3Cache = config.s3 ? new S3Cache(config.s3) : undefined;
 		this.writeThrough = config.writeThrough ?? true;
 		this.clearS3OnClear = config.clearS3OnClear ?? false;
 	}
@@ -31,28 +31,30 @@ export class HybridCacheProvider implements CacheProvider {
 			return localValue;
 		}
 
-		logger.debug(`Hybrid cache MISS (local), checking S3: ${key}`);
-		try {
-			const s3Value = await this.s3Cache.get(key);
-			if (s3Value !== null) {
-				logger.debug(`Hybrid cache HIT (S3), writing to local: ${key}`);
-				await this.diskCache.set(key, s3Value).catch((error) => {
-					logger.warn(`Failed to write S3 hit to local cache: ${key}`, error);
-				});
-				return s3Value;
+		if (this.s3Cache) {
+			logger.debug(`Hybrid cache MISS (local), checking S3: ${key}`);
+			try {
+				const s3Value = await this.s3Cache.get(key);
+				if (s3Value !== null) {
+					logger.debug(`Hybrid cache HIT (S3), writing to local: ${key}`);
+					await this.diskCache.set(key, s3Value).catch((error) => {
+						logger.warn(`Failed to write S3 hit to local cache: ${key}`, error);
+					});
+					return s3Value;
+				}
+			} catch (error) {
+				logger.debug(`S3 check failed for key: ${key}`, error);
 			}
-		} catch (error) {
-			logger.debug(`S3 check failed for key: ${key}`, error);
 		}
 
-		logger.debug(`Hybrid cache MISS (local and S3): ${key}`);
+		logger.debug(`Hybrid cache MISS: ${key}`);
 		return null;
 	}
 
 	async set(key: string, value: Buffer): Promise<void> {
 		await this.diskCache.set(key, value);
 
-		if (this.writeThrough) {
+		if (this.writeThrough && this.s3Cache) {
 			await this.s3Cache.set(key, value).catch((error: unknown) => {
 				logger.warn(`Failed to write to S3 cache: ${key} ${summarizeS3Error(error)}`);
 			});
@@ -63,18 +65,21 @@ export class HybridCacheProvider implements CacheProvider {
 		const localExists = await this.diskCache.exists(key);
 		if (localExists) return true;
 
-		try {
-			return await this.s3Cache.exists(key);
-		} catch (error) {
-			logger.debug(`S3 exists check failed for key: ${key}`, error);
-			return false;
+		if (this.s3Cache) {
+			try {
+				return await this.s3Cache.exists(key);
+			} catch (error) {
+				logger.debug(`S3 exists check failed for key: ${key}`, error);
+			}
 		}
+
+		return false;
 	}
 
 	async clear(): Promise<void> {
 		await this.diskCache.clear();
 
-		if (this.clearS3OnClear) {
+		if (this.clearS3OnClear && this.s3Cache) {
 			await this.s3Cache.clear().catch((error) => {
 				logger.warn("Failed to clear S3 cache", error);
 			});

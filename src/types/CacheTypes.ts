@@ -50,8 +50,8 @@ export interface S3Config {
 export interface HybridCacheConfig {
 	/** Local disk cache directory path */
 	localCacheDir: string;
-	/** S3 configuration */
-	s3: S3Config;
+	/** S3 configuration (optional — omit for local-only caching) */
+	s3?: S3Config;
 	/**
 	 * If true, writes to both local and S3 on set().
 	 * If false, only writes to local disk.

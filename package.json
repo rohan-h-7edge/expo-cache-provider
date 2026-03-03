@@ -1,7 +1,7 @@
 {
   "name": "expo-cache-provider",
   "description": "A hybrid cache provider for Expo that checks local disk first, then S3 on cache miss",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

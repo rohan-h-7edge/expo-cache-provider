@@ -110,32 +110,16 @@ function normalizeConfig(
 			options?.localCacheDir ||
 			env.EXPO_CACHE_LOCAL_DIR ||
 			getDefaultCacheDir(),
-		s3: {
-			bucket:
-				options?.s3?.bucket ||
-				env.EXPO_CACHE_S3_BUCKET ||
-				env.AWS_S3_BUCKET ||
-				"",
-			region:
-				options?.s3?.region ||
-				env.EXPO_CACHE_S3_REGION ||
-				env.AWS_REGION ||
-				"",
-			accessKeyId:
-				options?.s3?.accessKeyId ||
-				env.EXPO_CACHE_S3_ACCESS_KEY_ID ||
-				env.AWS_ACCESS_KEY_ID,
-			secretAccessKey:
-				options?.s3?.secretAccessKey ||
-				env.EXPO_CACHE_S3_SECRET_ACCESS_KEY ||
-				env.AWS_SECRET_ACCESS_KEY,
-			endpoint:
-				options?.s3?.endpoint ||
-				env.EXPO_CACHE_S3_ENDPOINT,
-			prefix:
-				options?.s3?.prefix ||
-				env.EXPO_CACHE_S3_PREFIX,
-		},
+		s3: (options?.s3?.bucket || env.EXPO_CACHE_S3_BUCKET || env.AWS_S3_BUCKET)
+			? {
+					bucket: options?.s3?.bucket || env.EXPO_CACHE_S3_BUCKET || env.AWS_S3_BUCKET || "",
+					region: options?.s3?.region || env.EXPO_CACHE_S3_REGION || env.AWS_REGION || "",
+					accessKeyId: options?.s3?.accessKeyId || env.EXPO_CACHE_S3_ACCESS_KEY_ID || env.AWS_ACCESS_KEY_ID,
+					secretAccessKey: options?.s3?.secretAccessKey || env.EXPO_CACHE_S3_SECRET_ACCESS_KEY || env.AWS_SECRET_ACCESS_KEY,
+					endpoint: options?.s3?.endpoint || env.EXPO_CACHE_S3_ENDPOINT,
+					prefix: options?.s3?.prefix || env.EXPO_CACHE_S3_PREFIX,
+			  }
+			: undefined,
 		writeThrough: options?.writeThrough ?? true,
 		clearS3OnClear: options?.clearS3OnClear ?? false,
 		includeJSHash: options?.includeJSHash ?? false,
