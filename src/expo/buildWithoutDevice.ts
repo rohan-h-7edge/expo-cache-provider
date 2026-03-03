@@ -8,15 +8,45 @@ import ExpoCacheProvider from "./index.js";
 import { logger } from "../utils/logger.js";
 
 export type BuildAndroidWithoutDeviceOptions = {
-	/** Android build variant. Default: "release" */
-	variant?: "debug" | "release";
+	/**
+	 * Android Gradle variant. Default: "release".
+	 * Accepts simple variants ("release", "debug") or compound Expo variants
+	 * like "qaRelease", "developDebug", "preprodRelease".
+	 */
+	variant?: string;
+	/**
+	 * Explicit path to the built APK. Overrides auto-detection when your project
+	 * uses a non-standard output layout.
+	 */
+	apkPath?: string;
 };
 
 const PLUGIN_NAME = "expo-cache-provider";
 const GRADLEW_WIN = "gradlew.bat";
 const GRADLEW_UNIX = "gradlew";
-const GRADLE_TASKS = { release: "assembleRelease", debug: "assembleDebug" } as const;
-const APK_NAMES = { release: "app-release.apk", debug: "app-debug.apk" } as const;
+
+/**
+ * Converts a variant string to its Gradle assemble task.
+ * "release" → "assembleRelease", "qaRelease" → "assembleQaRelease"
+ */
+function gradleTask(variant: string): string {
+	return `assemble${variant.charAt(0).toUpperCase()}${variant.slice(1)}`;
+}
+
+/**
+ * Resolves the expected APK output path for a given variant.
+ * Simple:   "release"      → apk/release/app-release.apk
+ * Compound: "qaRelease"    → apk/qa/release/app-qa-release.apk
+ *           "developDebug" → apk/develop/debug/app-develop-debug.apk
+ */
+function apkOutputPath(androidDir: string, variant: string): string {
+	const buildType = variant.endsWith("Release") ? "release" : variant.endsWith("Debug") ? "debug" : "release";
+	const flavor = buildType === "release" ? variant.slice(0, -7) : variant.slice(0, -5);
+	if (!flavor) {
+		return path.join(androidDir, "app", "build", "outputs", "apk", buildType, `app-${buildType}.apk`);
+	}
+	return path.join(androidDir, "app", "build", "outputs", "apk", flavor, buildType, `app-${flavor}-${buildType}.apk`);
+}
 
 function resolvePluginOptions(projectRoot: string): Partial<HybridCacheConfig> {
 	const { exp } = getConfig(projectRoot, { skipSDKVersionRequirement: true });
@@ -31,9 +61,9 @@ function resolvePluginOptions(projectRoot: string): Partial<HybridCacheConfig> {
 		: {};
 }
 
-function runGradleBuild(androidDir: string, variant: "debug" | "release"): void {
+function runGradleBuild(androidDir: string, variant: string): void {
 	const gradlew = path.join(androidDir, process.platform === "win32" ? GRADLEW_WIN : GRADLEW_UNIX);
-	execSync(`"${gradlew}" ${GRADLE_TASKS[variant]}`, {
+	execSync(`"${gradlew}" ${gradleTask(variant)}`, {
 		cwd: androidDir,
 		stdio: "inherit",
 		env: process.env,
@@ -76,11 +106,11 @@ export async function buildAndroidWithoutDevice(
 		return resolved;
 	}
 
-	logger.info(`Build (no device): cache miss, running Gradle ${GRADLE_TASKS[variant]}...`);
 	const androidDir = path.join(projectRoot, "android");
+	logger.info(`Build (no device): cache miss, running Gradle ${gradleTask(variant)}...`);
 	runGradleBuild(androidDir, variant);
 
-	const buildPath = path.join(androidDir, "app", "build", "outputs", "apk", variant, APK_NAMES[variant]);
+	const buildPath = options?.apkPath ? path.resolve(options.apkPath) : apkOutputPath(androidDir, variant);
 
 	await ExpoCacheProvider.uploadBuildCache({ ...resolveArgs, buildPath }, pluginOptions);
 	logger.info(`Build (no device): uploaded to cache, APK: ${buildPath}`);

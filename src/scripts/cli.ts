@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * CLI for expo-cache-provider.
- * Usage: npx expo-cache-provider build-android [--project-root=.] [--variant=release|debug]
+ * Usage: npx expo-cache-provider build-android [--project-root=.] [--variant=<variant>] [--apk-path=<path>]
  */
 import path from "node:path";
 import { buildAndroidWithoutDevice } from "../expo/buildWithoutDevice.js";
@@ -9,40 +9,47 @@ import { buildAndroidWithoutDevice } from "../expo/buildWithoutDevice.js";
 type CliArgs = {
 	command: string | undefined;
 	projectRoot: string;
-	variant: "debug" | "release";
+	variant: string;
+	apkPath: string | undefined;
 	isHelp: boolean;
 };
+
+function parseFlag(args: string[], flag: string): string | undefined {
+	const fromEq = args.find((a) => a.startsWith(`${flag}=`))?.slice(flag.length + 1);
+	const idx = args.indexOf(flag);
+	const fromNext = idx >= 0 && idx + 1 < args.length ? args[idx + 1] : undefined;
+	return fromEq ?? fromNext;
+}
 
 function parseCliArgs(argv: string[]): CliArgs {
 	const args = argv.slice(2);
 	const command = args.find((a) => !a.startsWith("-"));
-	const projectRoot =
-		args.find((a) => a.startsWith("--project-root="))?.split("=")[1] ?? process.cwd();
-
-	const variantFromEq = args.find((a) => a.startsWith("--variant="))?.split("=")[1];
-	const variantIdx = args.indexOf("--variant");
-	const variantFromNext = variantIdx >= 0 && variantIdx + 1 < args.length ? args[variantIdx + 1] : undefined;
-	const variantRaw = variantFromEq ?? variantFromNext;
-	const variant = variantRaw === "debug" || variantRaw === "release" ? variantRaw : "release";
-
+	const projectRoot = parseFlag(args, "--project-root") ?? process.cwd();
+	const variant = parseFlag(args, "--variant") ?? "release";
+	const apkPath = parseFlag(args, "--apk-path");
 	const isHelp = args.includes("--help") || args.includes("-h");
-
-	return { command, projectRoot, variant, isHelp };
+	return { command, projectRoot, variant, apkPath, isHelp };
 }
 
-const { command, projectRoot, variant, isHelp } = parseCliArgs(process.argv);
+const { command, projectRoot, variant, apkPath, isHelp } = parseCliArgs(process.argv);
 
 if (command === "build-android") {
-	buildAndroidWithoutDevice(path.resolve(projectRoot), { variant })
-		.then((apkPath) => {
-			console.log("APK path:", apkPath);
+	buildAndroidWithoutDevice(path.resolve(projectRoot), { variant, apkPath })
+		.then((result) => {
+			console.log("APK path:", result);
 		})
 		.catch((err) => {
 			console.error(err);
 			process.exit(1);
 		});
 } else {
-	console.log(`Usage: npx expo-cache-provider build-android [--project-root=<dir>] [--variant=release|debug]
-  Builds Android APK using cache (and optional repack) without requiring a device.`);
+	console.log(
+		`Usage: npx expo-cache-provider build-android [--project-root=<dir>] [--variant=<variant>] [--apk-path=<path>]
+
+  --variant   Gradle variant. Simple: "release", "debug". Compound: "qaRelease", "developDebug", "preprodRelease". Default: "release".
+  --apk-path  Explicit APK output path. Overrides auto-detection for non-standard layouts.
+
+  Builds Android APK using cache (and optional repack) without requiring a device.`,
+	);
 	process.exit(isHelp ? 0 : 1);
 }
