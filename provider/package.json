@@ -1,6 +1,6 @@
 {
 	"name": "expo-native-cache-provider",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "Native-only cache provider using Expo's official fingerprinting",
 	"license": "MIT",
 	"type": "module",
