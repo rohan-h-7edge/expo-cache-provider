@@ -2,6 +2,12 @@ import { readFile, writeFile, unlink, access, mkdir, readdir, rm } from "node:fs
 import { constants } from "node:fs";
 import path from "node:path";
 import { logger } from "../utils/logger.js";
+function isFileNotFoundError(error) {
+    return (error !== null &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT");
+}
 /**
  * Local disk-based cache for native build artifacts.
  */
@@ -13,21 +19,14 @@ export class DiskCache {
             throw new Error("cacheDir is required");
         }
     }
-    /**
-     * Gets a cached file by key.
-     */
     async get(key) {
         try {
-            const filePath = this.keyToPath(key);
-            const data = await readFile(filePath);
+            const data = await readFile(this.keyToPath(key));
             logger.debug(`Disk cache HIT: ${key}`);
             return data;
         }
         catch (error) {
-            if (error &&
-                typeof error === "object" &&
-                "code" in error &&
-                error.code === "ENOENT") {
+            if (isFileNotFoundError(error)) {
                 logger.debug(`Disk cache MISS: ${key}`);
                 return null;
             }
@@ -35,9 +34,6 @@ export class DiskCache {
             throw error;
         }
     }
-    /**
-     * Stores a file in cache.
-     */
     async set(key, value) {
         try {
             const filePath = this.keyToPath(key);
@@ -50,22 +46,15 @@ export class DiskCache {
             throw error;
         }
     }
-    /**
-     * Checks if a key exists in cache.
-     */
     async exists(key) {
         try {
-            const filePath = this.keyToPath(key);
-            await access(filePath, constants.F_OK);
+            await access(this.keyToPath(key), constants.F_OK);
             return true;
         }
         catch {
             return false;
         }
     }
-    /**
-     * Clears all cached files.
-     */
     async clear() {
         try {
             const entries = await readdir(this.cacheDir, { withFileTypes: true });
@@ -81,10 +70,7 @@ export class DiskCache {
             logger.info(`Cleared disk cache: ${this.cacheDir}`);
         }
         catch (error) {
-            if (error &&
-                typeof error === "object" &&
-                "code" in error &&
-                error.code === "ENOENT") {
+            if (isFileNotFoundError(error)) {
                 logger.debug(`Cache directory does not exist: ${this.cacheDir}`);
                 return;
             }
@@ -92,11 +78,7 @@ export class DiskCache {
             throw error;
         }
     }
-    /**
-     * Converts a cache key to a file path.
-     */
     keyToPath(key) {
-        // Use the key as-is, but ensure it's safe for filesystem
         return path.join(this.cacheDir, key.replace(/\//g, path.sep));
     }
 }

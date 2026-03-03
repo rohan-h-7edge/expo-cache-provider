@@ -38,12 +38,9 @@ export class S3Cache {
             return true;
         }
         catch (error) {
-            if (error &&
-                typeof error === "object" &&
-                "name" in error &&
-                error.name === "NotFound") {
+            const awsError = error;
+            if (awsError.name === "NotFound")
                 return false;
-            }
             logger.error(`Failed to check S3 existence: ${key}`, error);
             return false;
         }
@@ -72,11 +69,12 @@ export class S3Cache {
             return buffer;
         }
         catch (error) {
-            if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) {
+            const awsError = error;
+            if (awsError.name === "NoSuchKey" || awsError.$metadata?.httpStatusCode === 404) {
                 logger.debug(`S3 cache MISS: ${key}`);
                 return null;
             }
-            logger.error(`Failed to get from S3: ${key}`, error);
+            logger.error(`Failed to get from S3: ${key}`, awsError);
             return null;
         }
     }

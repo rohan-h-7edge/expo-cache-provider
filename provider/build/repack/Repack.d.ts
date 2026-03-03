@@ -27,14 +27,12 @@ export declare class Repack {
      * - Embedded frameworks preservation
      */
     static repackIOS(appPath: string, jsBundlePath: string, outputPath: string, projectRoot: string): Promise<string>;
-    /**
-     * Extracts a ZIP file (APK).
-     */
+    private static replaceJsBundle;
     private static extractZip;
     /**
      * Creates a ZIP file from all files in a directory.
      *
-     * Important: APK is a ZIP file with specific requirements:
+     * APK is a ZIP file with specific requirements:
      * - Must not compress certain files (like .so native libraries)
      * - Must preserve file permissions
      * - Must use store (no compression) for .so, .dex files
@@ -42,17 +40,12 @@ export declare class Repack {
     private static createZipFromDir;
     /**
      * Aligns an APK (required before signing).
-     *
-     * APK alignment is CRITICAL:
-     * - Must be 4-byte aligned for memory mapping
-     * - Unaligned APKs may fail to install or run
-     * - zipalign must run before signing
+     * APK must be 4-byte aligned for memory mapping; zipalign must run before signing.
      */
     private static alignApk;
-    /**
-     * Finds zipalign tool.
-     */
+    private static findAndroidSdkTool;
     private static findZipalign;
+    private static findApksigner;
     /**
      * Signs an Android APK with debug keystore.
      * Supports APK signing v1, v2, and v3.
@@ -61,47 +54,16 @@ export declare class Repack {
     /**
      * Signs an iOS app bundle.
      *
-     * Edge cases:
-     * - Must sign main executable first
-     * - Then sign Frameworks/*.framework (recursively)
-     * - Then sign PlugIns/*.appex (if any)
-     * - Then sign WatchKit extensions (if any)
-     * - Finally sign the entire .app bundle
-     * - Preserve entitlements if they exist
-     * - Handle deep signing (nested frameworks)
+     * Signing order: main executable → Frameworks → PlugIns → WatchKit extensions → .app bundle
+     * Ad-hoc signing works for simulator and development; device deployment requires proper certificates.
      */
     private static signIOSApp;
-    /**
-     * Finds apksigner tool.
-     */
-    private static findApksigner;
-    /**
-     * Generates a debug keystore.
-     */
     private static generateDebugKeystore;
-    /**
-     * Helper: Copy file.
-     */
     private static copyFile;
-    /**
-     * Helper: Copy directory recursively.
-     */
     private static copyDirectory;
-    /**
-     * Helper: Check if file exists.
-     */
     private static fileExists;
-    /**
-     * Helper: Find files matching a pattern.
-     */
     private static findFiles;
-    /**
-     * Removes code signatures from iOS app bundle recursively.
-     */
     private static removeCodeSignatures;
-    /**
-     * Helper: Cleanup temporary directory.
-     */
     private static cleanup;
 }
 //# sourceMappingURL=Repack.d.ts.map

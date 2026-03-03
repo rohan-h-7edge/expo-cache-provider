@@ -1,5 +1,5 @@
 import { getPackageJson } from "@expo/config";
-import { logger } from "./logger.js";
+const NATIVE_CACHE_PREFIX = "expo-native-cache";
 /**
  * Checks if a package has expo-dev-client as a dependency.
  */
@@ -48,17 +48,13 @@ export function detectProfile(runOptions, projectRoot) {
  * Production builds are always blocked.
  */
 export function shouldUseCache(profile) {
-    if (profile === "production") {
-        logger.warn("Cache SKIP: Production builds are not cached");
-        return false;
-    }
-    return true;
+    return profile !== "production";
 }
 /**
- * Builds a cache key in the format: expo-native-cache/<profile>/<platform>/<fingerprint>.<ext>
+ * Builds a cache key: `expo-native-cache/<profile>/<platform>/<fingerprint>.<ext>`
  */
 export function buildCacheKey(profile, platform, fingerprint) {
     const extension = platform === "ios" ? "app" : "apk";
-    return `expo-native-cache/${profile}/${platform}/${fingerprint}.${extension}`;
+    return `${NATIVE_CACHE_PREFIX}/${profile}/${platform}/${fingerprint}.${extension}`;
 }
 //# sourceMappingURL=guards.js.map

@@ -15,7 +15,7 @@ export declare function detectProfile(runOptions: RunOptions, projectRoot: strin
  */
 export declare function shouldUseCache(profile: Profile): boolean;
 /**
- * Builds a cache key in the format: expo-native-cache/<profile>/<platform>/<fingerprint>.<ext>
+ * Builds a cache key: `expo-native-cache/<profile>/<platform>/<fingerprint>.<ext>`
  */
 export declare function buildCacheKey(profile: Profile, platform: "android" | "ios", fingerprint: string): string;
 //# sourceMappingURL=guards.d.ts.map

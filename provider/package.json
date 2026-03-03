@@ -2,11 +2,16 @@
 	"name": "expo-native-cache-provider",
 	"version": "0.1.0",
 	"description": "Native-only cache provider using Expo's official fingerprinting",
+	"license": "MIT",
 	"main": "build/index.js",
 	"types": "build/index.d.ts",
+	"files": [
+		"/build"
+	],
 	"scripts": {
 		"build": "tsc",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"prepublishOnly": "npm run typecheck && npm run build"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.922.0",

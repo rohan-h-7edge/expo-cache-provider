@@ -3,8 +3,10 @@
  */
 type LogLevel = "debug" | "info" | "warn" | "error";
 declare class Logger {
+    private readonly prefix;
     private enabled;
     private level;
+    constructor(prefix?: string);
     setEnabled(enabled: boolean): void;
     setLevel(level: LogLevel): void;
     private shouldLog;
